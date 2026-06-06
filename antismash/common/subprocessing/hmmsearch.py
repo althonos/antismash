@@ -5,12 +5,16 @@
 """
 
 import logging
+import io
 import os
 from typing import List
 
+import pyhmmer
 from helperlibs.wrappers.io import TemporaryDirectory
 
 from .base import execute, get_config, SearchIO
+
+logger = logging.getLogger()
 
 
 def run_hmmsearch(query_hmmfile: str, target_sequence: str, use_tempfile: bool = False
@@ -27,33 +31,33 @@ def run_hmmsearch(query_hmmfile: str, target_sequence: str, use_tempfile: bool =
             a list of hmmsearch results as parsed by SearchIO
     """
     config = get_config()
-    command = [config.executables.hmmsearch, "--cpu", str(config.cpus),
-               "-o", os.devnull,  # throw away the verbose output
-               "--domtblout", "result.domtab",
-               query_hmmfile]
+    cpus = config.cpus
 
     # Allow for disabling multithreading for HMMer3 calls in the command line
     if config.get('hmmer3') and 'multithreading' in config.hmmer3 and \
             not config.hmmer3.multithreading:
-        command = command[0:1] + command[3:]
+        cpus = 1
 
-    with TemporaryDirectory(change=True):
-        try:
-            if use_tempfile:
-                with open("input.fa", "w", encoding="utf-8") as handle:
-                    handle.write(target_sequence)
-                command.append("input.fa")
-                run_result = execute(command)
-            else:
-                command.append('-')
-                run_result = execute(command, stdin=target_sequence)
-        except OSError:
-            return []
-        if not run_result.successful():
-            logging.error('hmmsearch returned %d: %s while searching %s',
-                          run_result.return_code, run_result.stderr, query_hmmfile)
-            raise RuntimeError("Running hmmsearch failed.")
-        return list(SearchIO.parse("result.domtab", 'hmmsearch3-domtab'))
+    # Parse target sequences
+    target_buffer = io.BytesIO(target_sequence.encode('utf-8'))
+    aa = pyhmmer.easel.Alphabet.amino()
+    with pyhmmer.easel.SequenceFile(
+        target_buffer,
+        format="fasta",
+        digital=True,
+        alphabet=aa,
+    ) as sequence_file:
+        targets = sequence_file.read_block()
+
+    # Run hmmsearch
+    output = io.BytesIO()
+    with pyhmmer.plan7.HMMFile(query_hmmfile) as hmms:
+        for i, hits in enumerate(pyhmmer.hmmsearch(hmms, targets, cpus=cpus)):
+            hits.write(output, format="domains", header=i==0)
+
+    # Return results
+    output.seek(0)
+    return list(SearchIO.parse(io.TextIOWrapper(output), "hmmsearch3-domtab"))
 
 
 def run_hmmsearch_version() -> str:
