@@ -29,6 +29,7 @@ install_requires = [
     'libsass == 0.23.0',
     'matplotlib == 3.10.1',
     'orjson == 3.10.16',
+    'pyhmmer == 0.12.1',
     'scipy == 1.15.2',
     'scikit-learn == 1.6.1',
     'MOODS-python == 1.9.4.1'
