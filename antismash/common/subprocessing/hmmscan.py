@@ -11,6 +11,7 @@ from typing import List
 
 import pyhmmer
 
+from ._hmms import load_hmms
 from .base import execute, get_config, SearchIO
 
 
@@ -29,14 +30,6 @@ def _find_error(output: list[str]) -> str:
             return line
     # in the worst case, return a default
     return "unknown error"
-
-
-_HMM_CACHE = {}
-def _load_hmms(path: str) -> list[pyhmmer.plan7.HMM]:
-    if path not in _HMM_CACHE:
-        with pyhmmer.plan7.HMMFile(path) as hmm_file:
-            _HMM_CACHE[path] = list(hmm_file)
-    return _HMM_CACHE[path]
 
 
 def run_hmmscan(target_hmmfile: str, query_sequence: str, opts: List[str] = None,
@@ -72,7 +65,7 @@ def run_hmmscan(target_hmmfile: str, query_sequence: str, opts: List[str] = None
         queries = sequence_file.read_block()
 
     # Pre-load HMMs
-    hmms = _load_hmms(target_hmmfile)
+    hmms = load_hmms(target_hmmfile)
     
     # Additional option parsing
     pyhmmer_options = dict(bias_filter=False, cpus=cpus, Z=len(hmms))

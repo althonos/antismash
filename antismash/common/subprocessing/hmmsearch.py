@@ -12,6 +12,7 @@ from typing import List
 import pyhmmer
 from helperlibs.wrappers.io import TemporaryDirectory
 
+from ._hmms import load_hmms
 from .base import execute, get_config, SearchIO
 
 logger = logging.getLogger()
@@ -49,11 +50,13 @@ def run_hmmsearch(query_hmmfile: str, target_sequence: str, use_tempfile: bool =
     ) as sequence_file:
         targets = sequence_file.read_block()
 
+    # Pre-load HMMs
+    hmms = load_hmms(query_hmmfile)
+
     # Run hmmsearch
     output = io.BytesIO()
-    with pyhmmer.plan7.HMMFile(query_hmmfile) as hmms:
-        for i, hits in enumerate(pyhmmer.hmmsearch(hmms, targets, cpus=cpus)):
-            hits.write(output, format="domains", header=i==0)
+    for i, hits in enumerate(pyhmmer.hmmsearch(hmms, targets, cpus=cpus)):
+        hits.write(output, format="domains", header=i==0)
 
     # Return results
     output.seek(0)
