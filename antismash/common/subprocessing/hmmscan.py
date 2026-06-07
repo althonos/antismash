@@ -94,7 +94,7 @@ def run_hmmscan(target_hmmfile: str, query_sequence: str, opts: List[str] = None
 
     # Run hmmscan
     output = io.BytesIO()
-    for i, hits in enumerate(pyhmmer.hmmsearch(hmms, queries, **pyhmmer_options)):
+    for i, hits in enumerate(pyhmmer.hmmscan(hmms, queries, **pyhmmer_options)):
         hits.write(output, format="domains", header=i==0)
 
     # Parse result table

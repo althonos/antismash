@@ -178,9 +178,9 @@ def run_halogenase_phmms(cluster_fasta: str, aggregated_file: str, profiles: lis
     specific_hits = defaultdict(list)
 
     for hit in hits:
+        cds_name = hit.id
         for hsp in hit.hsps:
-            profile = profiles_by_name[hsp.query_id]
-            cds_name = hsp.hit_id
+            profile = profiles_by_name[hsp.hit_id]
             if hsp.bitscore < profile.cutoffs[-1]:
                 continue
 

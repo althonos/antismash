@@ -247,8 +247,8 @@ def gather_by_query(results: List[HSP]) -> Dict[str, Set[HMMResult]]:
     results_by_id: Dict[str, Set[HMMResult]] = defaultdict(set)
     for result in results:
         for hsp in result.hsps:
-            results_by_id[hsp.hit_id].add(HMMResult(hsp.query_id, hsp.hit_start,
-                                                      hsp.hit_end, hsp.evalue,
+            results_by_id[hsp.query_id].add(HMMResult(hsp.hit_id, hsp.query_start,
+                                                      hsp.query_end, hsp.evalue,
                                                       hsp.bitscore))
     return results_by_id
 
