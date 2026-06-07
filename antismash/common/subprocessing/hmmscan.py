@@ -94,12 +94,12 @@ def run_hmmscan(target_hmmfile: str, query_sequence: str, opts: List[str] = None
 
     # Run hmmscan
     output = io.BytesIO()
-    for i, hits in enumerate(pyhmmer.hmmscan(hmms, queries, **pyhmmer_options)):
+    for i, hits in enumerate(pyhmmer.hmmscan(queries, hmms, **pyhmmer_options)):
         hits.write(output, format="domains", header=i==0)
 
     # Parse result table
     output.seek(0)
-    return list(SearchIO.parse(io.TextIOWrapper(output), "hmmsearch3-domtab"))
+    return list(SearchIO.parse(io.TextIOWrapper(output), "hmmscan3-domtab"))
 
 
 def run_hmmscan_help() -> str:
