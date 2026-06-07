@@ -5,6 +5,7 @@
 """
 
 import io
+import logging
 from io import StringIO
 from typing import List
 
@@ -55,6 +56,7 @@ def run_hmmscan(target_hmmfile: str, query_sequence: str, opts: List[str] = None
     if not query_sequence:
         raise ValueError("Cannot run hmmscan on empty sequence")
 
+    logger = logging.getLogger()
     config = get_config()
     cpus = config.cpus
 
@@ -72,12 +74,27 @@ def run_hmmscan(target_hmmfile: str, query_sequence: str, opts: List[str] = None
     # Pre-load HMMs
     hmms = _load_hmms(target_hmmfile)
     
-    # Allow trusted cutoffs
-    cutoffs = "trusted" if (opts and ("--cut_tc" in opts)) else None
+    # Additional option parsing
+    pyhmmer_options = dict(bias_filter=False, cpus=cpus, Z=len(hmms))
+    if opts:
+        if "--cut_tc" in opts:
+            pyhmmer_options["bit_cutoffs"] = "trusted"
+            opts.remove("--cut_tc")
+        if "--cut_ga" in opts:
+            pyhmmer_options["bit_cutoffs"] = "gathering"
+            opts.remove("--cut_ga")
+        if "-E" in opts:
+            i = opts.index("-E")
+            pyhmmer_options["E"] = float(opts.pop(i+1))
+            opts.pop(i)
+        if opts:
+            logger.warning(
+                "unknown options in run_hmmscan: {}".format(opts)
+            )
 
     # Run hmmscan
     output = io.BytesIO()
-    for i, hits in enumerate(pyhmmer.hmmscan(queries, hmms, cpus=cpus, bit_cutoffs=cutoffs, bias_filter=False)):
+    for i, hits in enumerate(pyhmmer.hmmscan(hmms, queries, **pyhmmer_options)):
         hits.write(output, format="domains", header=i==0)
 
     # Parse result table
