@@ -4,8 +4,11 @@
 """ A collection of functions for running hmmscan.
 """
 
+import io
 from io import StringIO
 from typing import List
+
+import pyhmmer
 
 from .base import execute, get_config, SearchIO
 
@@ -27,6 +30,14 @@ def _find_error(output: list[str]) -> str:
     return "unknown error"
 
 
+_HMM_CACHE = {}
+def _load_hmms(path: str) -> list[pyhmmer.plan7.HMM]:
+    if path not in _HMM_CACHE:
+        with pyhmmer.plan7.HMMFile(path) as hmm_file:
+            _HMM_CACHE[path] = list(hmm_file)
+    return _HMM_CACHE[path]
+
+
 def run_hmmscan(target_hmmfile: str, query_sequence: str, opts: List[str] = None,
                 results_file: str = None) -> list[SearchIO._model.query.QueryResult]:
     """ Runs hmmscan on the inputs and return a list of QueryResults
@@ -45,27 +56,33 @@ def run_hmmscan(target_hmmfile: str, query_sequence: str, opts: List[str] = None
         raise ValueError("Cannot run hmmscan on empty sequence")
 
     config = get_config()
-    command = [config.executables.hmmscan, "--cpu", str(config.cpus), "--nobias"]
+    cpus = config.cpus
 
-    # Only run multithreaded when the binary supports it
-    if " --cpu " not in run_hmmscan_help():
-        command = command[0:1] + command[3:]
+    # Parse query sequences
+    query_buffer = io.BytesIO(query_sequence.encode('utf-8'))
+    aa = pyhmmer.easel.Alphabet.amino()
+    with pyhmmer.easel.SequenceFile(
+        query_buffer,
+        format="fasta",
+        digital=True,
+        alphabet=aa,
+    ) as sequence_file:
+        queries = sequence_file.read_block()
 
-    if opts is not None:
-        command.extend(opts)
-    command.extend([target_hmmfile, '-'])
-    result = execute(command, stdin=query_sequence)
-    if not result.successful():
-        raise RuntimeError("".join([
-            f"hmmscan returned {result.return_code}: ",
-            f"'{_find_error((result.stderr or result.stdout).splitlines())}'",
-            f" while scanning {query_sequence[:100]!r}...",
-        ]))
-    if results_file is not None:
-        with open(results_file, "w", encoding="utf-8") as handle:
-            handle.write(result.stdout)
+    # Pre-load HMMs
+    hmms = _load_hmms(target_hmmfile)
+    
+    # Allow trusted cutoffs
+    cutoffs = "trusted" if (opts and ("--cut_tc" in opts)) else None
 
-    return list(SearchIO.parse(StringIO(result.stdout), 'hmmer3-text'))
+    # Run hmmscan
+    output = io.BytesIO()
+    for i, hits in enumerate(pyhmmer.hmmscan(queries, hmms, cpus=cpus, bit_cutoffs=cutoffs, bias_filter=False)):
+        hits.write(output, format="domains", header=i==0)
+
+    # Parse result table
+    output.seek(0)
+    return list(SearchIO.parse(io.TextIOWrapper(output), "hmmsearch3-domtab"))
 
 
 def run_hmmscan_help() -> str:
